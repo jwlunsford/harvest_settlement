@@ -1,11 +1,10 @@
 import sys
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Float, Boolean, Date
+from datetime import datetime
 
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, Boolean, Date, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-
-from sqlalchemy.orm import relationship
-
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy import create_engine
 
 Base = declarative_base()
@@ -13,108 +12,115 @@ Base = declarative_base()
 # end of SQLAlchemy Configuration
 
 class Buyer(Base):
-    # represents table Buyer
+    # represents table Buyer Lookup
     __tablename__ = 'buyer'
 
-    id = Column(Integer, primary_key = True)
-    company = Column(String(50), nullable = False)
+    buyer_id = Column(Integer, primary_key=True)
+    company_name = Column(String(50), nullable=False, unique=True)
+    # the reverse side of this relationship is not needed,
+    # so no backref parameter is used
+    crews = relationship('Crew')
 
 
 class Crew(Base):
     # represents table Crew Lookup
     __tablename__ = 'crew'
 
-    id = Column(Integer, primary_key = True)
-    name = Column(String(50), nullable = False)
-
-
-class Destination(Base):
-    # represents table Destination Lookup
-    __tablename__ = 'destination'
-
-    id = Column(Integer, primary_key = True)
-    name = Column(String(50), nullable = False)
-    location = Column(String(50), nullable = False)
+    crew_id = Column(Integer, primary_key=True)
+    crew_name = Column(String(50), nullable=False, unique=True)
+    buyer_id = Column(Integer, ForeignKey('buyer.buyer_id'))
 
 
 class Product(Base):
     # represents table Product Lookup
     __tablename__ = 'product'
 
-    id = Column(Integer, primary_key = True)
-    name = Column(String(10), nullable = False)
-    description = Column(String(50), nullable = False)
+    product_id = Column(Integer, primary_key=True)
+    product_name = Column(String(10), nullable=False)
+    product_descr = Column(String(50), nullable=False)
+    contracts = relationship('ContractProduct', back_populates='product')
 
 
-class ProductRate(Base):
-    # represents linking table betwen product and contract
-    __tablename__ = 'product_rate'
-
-    id = Column(Integer, primary_key = True)
-    product_price = Column(Float, nullable = False)
-    product_id = Column(Integer, ForeignKey('product.id'))
-    contract_id = Column(Integer, ForeignKey('contract.id'))
-    product = relationship('Product')
-    contract = relationship('Contract')
+class ContractProduct(Base):
+    # represents a product on a single contract
+    __tablename__ = 'contract_product'
+    contract_id = Column(Integer, ForeignKey('Contract.contract_id'),
+                         primary_key=True)
+    product_id = Column(Integer, ForeignKey('Product.product_id'),
+                        primary_key=True)
+    price = Column(Float, nullable=False)
+    product = relationship('Product', back_populates='contracts')
+    contract = relationship('Contract', back_populates='products')
 
 
 class Contract(Base):
     # represents table Contract
     __tablename__ = 'contract'
 
-    id = Column(Integer, primary_key = True)
+    contract_id = Column(Integer, primary_key = True)
     ref_num = Column(String(6), nullable = False)
     active = Column(Boolean, nullable = False)
+    created_on = Column(DateTime, default=datetime.now)
+    updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     buyer_id = Column(Integer, ForeignKey('buyer.id'))
     buyer = relationship('Buyer')
+    products = relationship('Contract_Product', back_populates='contract')
+    harvests = relationship('Harvest', backref='contract')
 
 
-class SaleType(Base):
+class HarvestType(Base):
     # reprsenets table SaleType Lookup
-    __tablename__ = 'sale_type'
+    __tablename__ = 'harvest_type'
 
-    id = Column(Integer, primary_key = True)
-    type_desc = Column(String(20), nullable = False)
+    htype_id = Column(Integer, primary_key = True)
+    htype_desc = Column(String(20), nullable = False)
+    harvests = relationship("Harvest", backref='htype')
 
 
+class Harvest(Base):
+    # represents table Harvest
+    __tablename__ = 'harvest'
 
-class Sale(Base):
-    # represents table Sale
-    __tablename__ = 'sale'
-
-    id = Column(Integer, primary_key = True)
-    name = Column(String(50), nullable = False)
-    acres = Column(Integer, nullable = False)
-    type_id = Column(Integer, ForeignKey('sale_type.id'))
+    harvest_id = Column(Integer, primary_key=True)
+    name = Column(String(50), nullable=False)
+    acres = Column(Integer, nullable=False)
+    created_on = Column(DateTime, default=datetime.now)
+    updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    htype_id = Column(Integer, ForeignKey('harvest_type.id'))
     contract_id = Column(Integer, ForeignKey('contract.id'))
-    sale_type = relationship(SaleType)
-    contract = relationship(Contract)
+
+    payments = relationship('Payments', backref='harvest')
 
 
+class Payment(Base):
+    # represents table Payment
+    __tablename__ = 'payment'
 
-class Settlement(Base):
-    # represents table Settlement
-    __tablename__ = 'settlement'
+    payment_id = Column(Integer, primary_key=True)
+    payment_date = Column(Date, nullable=False)
+    payment_tons = Column(Float, nullable=False)
+    payment_loads = Column(Integer, nullable=False)
+    payment_amt = Column(Float, nullable=False)
+    created_on = Column(DateTime, default=datetime.now)
+    updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    id = Column(Integer, primary_key = True)
-    date = Column(Date, nullable = False)
-    net_tons = Column(Float, nullable = False)
-    price = Column(Float, nullable = False) # needs to be a dynamic lookup
-    loads = Column(Integer, nullable = False)
-    total = Column(Float, nullable = False)
-    sale_id = Column(Integer, ForeignKey('sale.id'))
-    dest_id = Column(Integer, ForeignKey('destination.id'))
-    prod_rate_id = Column(Integer, ForeignKey('product_rate.id'))
-    crew_id = Column(Integer, ForeignKey('crew.id'))
-    sale = relationship(Sale)
-    dest = relationship(Destination)
-    prod_rate = relationship(Product)
-    crew = relationship(Crew)
+    harvest_id = Column(Integer, ForeignKey('harvest.harvest_id'))
+    dest_id = Column(Integer, ForeignKey('destination.dest_id'))
 
+
+class Destination(Base):
+    # represents table Destination Lookup
+    __tablename__ = 'destination'
+
+    dest_id = Column(Integer, primary_key=True)
+    dest_name = Column(String(50), nullable=False)
+    dest_descr = Column(String(250), nullable=False)
+
+    payments = relationship('Payment', backref='destination')
 
 
 # create the database
-engine = create_engine('sqlite:///HarvestContracts.db')
+engine = create_engine('sqlite:///Harvest_Settlement.db')
 
 Base.metadata.create_all(engine)
 

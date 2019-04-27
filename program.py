@@ -21,6 +21,10 @@ def index():
 
 
 
+@app.route('/contracts')
+def contracts():
+    # view active contracts in the database
+
 
 
 if __name__ == '__main__':
